@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#09131d">
+  <title>VoltLink | Minimum-Cost Power Grid Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* CONFIG: theme tokens and base styles */
+    :root {
+      color-scheme: dark;
+      --page: #08131c;
+      --surface: #101e29;
+      --surface-raised: #152632;
+      --surface-soft: #0d1a24;
+      --line: rgba(173, 203, 215, .13);
+      --line-strong: rgba(173, 203, 215, .23);
+      --text: #eef7f8;
+      --muted: #91a8b1;
+      --quiet: #627a84;
+      --yellow: #ffd34f;
+      --cyan: #50d7e8;
+      --green: #5fe0a0;
+      --amber: #ffb84c;
+      --red: #ff6b70;
+      --shadow: 0 22px 60px rgba(0, 0, 0, .24);
+      --mono: "DM Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+      --sans: "Manrope", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--page);
+      background-image: radial-gradient(ellipse at 8% 0%, rgba(38, 94, 103, .16), transparent 35%), radial-gradient(ellipse at 94% 18%, rgba(107, 93, 39, .09), transparent 30%);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      transition: background-color .25s, color .25s;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--yellow); outline-offset: 3px; }
+    .app-shell { width: min(1600px, 100%); margin: 0 auto; padding: 24px clamp(14px, 3vw, 42px) 48px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand-mark { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border: 1px solid rgba(255,211,79,.36); border-radius: 12px; background: linear-gradient(145deg, rgba(255,211,79,.17), rgba(255,211,79,.035)); color: var(--yellow); box-shadow: 0 0 24px rgba(255,211,79,.08); }
+    .brand-mark svg { width: 23px; height: 23px; }
+    .brand-name { margin: 0; font-size: 17px; font-weight: 800; line-height: 1.25; letter-spacing: 0; }
+    .brand-tagline { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
+    .button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 9px; background: rgba(255,255,255,.035); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; transition: transform .16s, border-color .16s, background .16s, box-shadow .16s; }
+    .button:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.34); background: rgba(255,255,255,.075); }
+    .button:active { transform: translateY(0) scale(.98); }
+    .button svg { width: 16px; height: 16px; flex: 0 0 auto; }
+    .button.primary { border-color: rgba(255,211,79,.6); background: var(--yellow); color: #172027; box-shadow: 0 7px 22px rgba(255,211,79,.15); }
+    .button.primary:hover { background: #ffe078; box-shadow: 0 9px 28px rgba(255,211,79,.22); }
+    .button.quiet { background: transparent; }
+    .button.icon-only { width: 42px; padding: 0; }
+    .button.small { min-height: 36px; padding: 0 11px; }
+    .button:disabled { cursor: not-allowed; opacity: .42; transform: none; }
+    .eyebrow { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.58fr) minmax(350px, .92fr); gap: 18px; align-items: start; padding-top: 20px; }
+    .panel { border: 1px solid var(--line); border-radius: 13px; background: linear-gradient(145deg, rgba(21,38,50,.94), rgba(13,26,36,.97)); box-shadow: var(--shadow); }
+    .canvas-panel { min-width: 0; overflow: hidden; }
+    .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 17px 19px 14px; border-bottom: 1px solid var(--line); }
+    .panel-heading h2 { margin: 3px 0 0; font-size: 15px; font-weight: 800; }
+    .canvas-state { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px rgba(95,224,160,.7); }
+    .canvas-wrap { position: relative; height: clamp(370px, 54vw, 620px); min-height: 340px; background: #09151e; touch-action: none; overflow: hidden; }
+    #gridCanvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+    .canvas-tooltip { position: absolute; z-index: 4; display: none; max-width: 210px; pointer-events: none; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: rgba(7,17,25,.96); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.35); font-size: 11px; line-height: 1.45; }
+    .canvas-tooltip strong { display: block; color: var(--yellow); font-size: 11px; }
+    .canvas-hint { position: absolute; right: 13px; bottom: 12px; max-width: calc(100% - 26px); padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: rgba(8,19,28,.77); color: #afc3ca; font-size: 10px; backdrop-filter: blur(8px); pointer-events: none; }
+    .canvas-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 13px 17px; border-top: 1px solid var(--line); }
+    .legend { display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; white-space: nowrap; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); }
+    .legend-dot.source { background: var(--yellow); }
+    .legend-dot.powered { background: var(--green); }
+    .legend-dot.unpowered { background: #71848a; }
+    .legend-line { width: 15px; border-top: 2px solid var(--amber); }
+    .legend-line.selected { border-color: var(--green); }
+    .side-panel { min-width: 0; overflow: hidden; }
+    .tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 7px; gap: 5px; border-bottom: 1px solid var(--line); }
+    .tab { min-height: 39px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 800; transition: .18s; }
+    .tab:hover { color: var(--text); background: rgba(255,255,255,.045); }
+    .tab[aria-selected="true"] { background: rgba(80,215,232,.11); color: var(--cyan); box-shadow: inset 0 0 0 1px rgba(80,215,232,.13); }
+    .tab-content { min-height: 580px; padding: 18px; }
+    .tab-pane[hidden] { display: none; }
+    .section-title { margin: 0; font-size: 13px; font-weight: 800; }
+    .section-subtitle { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .control-section + .control-section { margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--line); }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 10px; }
+    .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .field label { color: var(--muted); font-size: 10px; font-weight: 700; }
+    .field input, .field select, .matrix-input { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface-soft); color: var(--text); font-family: var(--mono); font-size: 12px; }
+    .field input[type="number"] { appearance: textfield; }
+    .field input[type="number"]::-webkit-inner-spin-button, .field input[type="number"]::-webkit-outer-spin-button { margin: 0; appearance: none; }
+    .inline-control { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; margin-top: 9px; }
+    .inline-label { color: var(--muted); font-size: 11px; }
+    .toggle { position: relative; width: 38px; height: 22px; flex: 0 0 auto; }
+    .toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .toggle-track { position: absolute; inset: 0; border: 1px solid var(--line-strong); border-radius: 20px; background: #233640; cursor: pointer; transition: .2s; }
+    .toggle-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #b4c3c8; transition: .2s; }
+    .toggle input:checked + .toggle-track { border-color: rgba(80,215,232,.6); background: rgba(80,215,232,.27); }
+    .toggle input:checked + .toggle-track::after { transform: translateX(16px); background: var(--cyan); }
+    .toggle input:focus-visible + .toggle-track { outline: 2px solid var(--yellow); outline-offset: 3px; }
+    .segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+    .segmented button { min-height: 34px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 800; }
+    .segmented button.active { background: rgba(80,215,232,.13); color: var(--cyan); }
+    .source-note { margin-top: 11px; padding: 9px 10px; border-left: 2px solid var(--yellow); background: rgba(255,211,79,.055); color: var(--muted); font-size: 10px; }
+    .control-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .control-actions .button { width: 100%; }
+    .control-actions .button.primary { grid-column: 1 / -1; min-height: 47px; }
+    .matrix-wrap { overflow: auto; max-height: 210px; border: 1px solid var(--line); border-radius: 8px; }
+    .matrix-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 10px; }
+    .matrix-table th, .matrix-table td { min-width: 52px; padding: 5px; text-align: center; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .matrix-table th { position: sticky; top: 0; z-index: 1; background: var(--surface-raised); color: var(--muted); font-weight: 500; }
+    .matrix-table th:first-child { left: 0; z-index: 2; }
+    .matrix-table th.row-head { position: sticky; left: 0; z-index: 1; background: var(--surface-raised); }
+    .matrix-input { height: 30px; padding: 0 4px; border-radius: 4px; text-align: center; font-size: 10px; }
+    .matrix-input:disabled { opacity: .4; }
+    .matrix-note { margin: 7px 0 0; color: var(--quiet); font-size: 10px; }
+    .complexity-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-family: var(--mono); font-size: 9px; white-space: nowrap; }
+    .complexity-chip b { color: var(--cyan); font-weight: 500; }
+    .step-explanation { min-height: 88px; margin: 14px 0; padding: 12px; border: 1px solid rgba(255,184,76,.22); border-radius: 8px; background: rgba(255,184,76,.055); color: #ebd2aa; font-size: 12px; line-height: 1.65; }
+    .step-explanation strong { color: var(--amber); }
+    .player-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .player-controls .button { min-width: 0; min-height: 40px; padding: 0 5px; font-size: 10px; }
+    .player-controls svg { width: 14px; height: 14px; }
+    .speed-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; margin: 14px 0; color: var(--muted); font-size: 10px; }
+    input[type="range"] { width: 100%; accent-color: var(--amber); }
+    .progress-track { height: 4px; overflow: hidden; border-radius: 4px; background: rgba(255,255,255,.08); }
+    .progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--green); transition: width .35s ease; }
+    .step-list { display: flex; flex-direction: column; gap: 6px; max-height: 210px; margin-top: 13px; overflow: auto; scroll-behavior: smooth; }
+    .step-item { display: grid; grid-template-columns: 25px 1fr; gap: 8px; padding: 8px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); font-size: 10px; transition: .2s; }
+    .step-item.active { border-color: rgba(255,184,76,.25); background: rgba(255,184,76,.07); color: var(--text); }
+    .step-num { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.07); color: var(--muted); font-family: var(--mono); font-size: 9px; }
+    .step-item.active .step-num { background: var(--amber); color: #1c1b16; }
+    .state-table-wrap { max-height: 168px; margin-top: 12px; overflow: auto; border: 1px solid var(--line); border-radius: 7px; }
+    .state-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 9px; }
+    .state-table th, .state-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+    .state-table th { position: sticky; top: 0; background: var(--surface-raised); color: var(--muted); font-weight: 500; }
+    .state-table td { color: var(--text); }
+    .state-table td.state-yes { color: var(--green); }
+    .state-table td.state-no { color: var(--quiet); }
+    .empty-state { display: grid; place-items: center; min-height: 130px; color: var(--quiet); font-size: 11px; text-align: center; }
+    .result-hero { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 14px; border: 1px solid rgba(95,224,160,.2); border-radius: 9px; background: linear-gradient(110deg, rgba(95,224,160,.09), rgba(95,224,160,.02)); }
+    .result-hero .eyebrow { color: var(--green); }
+    .result-cost { margin-top: 5px; font-family: var(--mono); font-size: 28px; font-weight: 500; line-height: 1.1; }
+    .result-unit { color: var(--muted); font-size: 10px; }
+    .wire-count { min-width: 68px; padding-left: 11px; border-left: 1px solid var(--line); text-align: center; }
+    .wire-count strong { display: block; font-family: var(--mono); font-size: 19px; font-weight: 500; }
+    .wire-count span { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+    .compare-card { margin-top: 11px; padding: 13px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255,255,255,.025); }
+    .compare-card h3 { margin: 0; font-size: 11px; font-weight: 800; }
+    .compare-values { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-top: 12px; }
+    .compare-value span { display: block; color: var(--muted); font-size: 9px; }
+    .compare-value strong { display: block; margin-top: 3px; font-family: var(--mono); font-size: 14px; font-weight: 500; }
+    .compare-arrow { color: var(--quiet); }
+    .savings { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .savings strong { color: var(--green); font-family: var(--mono); font-size: 15px; font-weight: 500; }
+    .wire-list { display: flex; flex-direction: column; gap: 5px; max-height: 155px; margin-top: 13px; overflow: auto; }
+    .wire-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: 10px; }
+    .wire-row span:last-child { color: var(--green); font-family: var(--mono); }
+    .unreachable-box { display: none; margin-top: 10px; padding: 10px; border: 1px solid rgba(255,107,112,.29); border-radius: 7px; background: rgba(255,107,112,.07); color: #ffb1b4; font-size: 10px; }
+    .export-row { display: flex; gap: 7px; margin-top: 12px; }
+    .export-row .button { flex: 1; }
+    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 10; max-width: min(420px, calc(100vw - 32px)); padding: 12px 15px; transform: translateY(15px); border: 1px solid var(--line-strong); border-left: 3px solid var(--yellow); border-radius: 8px; background: #13232d; color: var(--text); box-shadow: var(--shadow); font-size: 12px; opacity: 0; pointer-events: none; transition: .25s; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { border-left-color: var(--red); }
+    .finale-banner { display: none; margin-top: 11px; padding: 10px 12px; border: 1px solid rgba(95,224,160,.25); border-radius: 7px; background: rgba(95,224,160,.08); color: var(--green); font-size: 11px; font-weight: 800; text-align: center; }
+    .learn { margin-top: 19px; border: 1px solid var(--line); border-radius: 12px; background: rgba(16,30,41,.76); overflow: hidden; }
+    .learn summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 58px; padding: 0 18px; cursor: pointer; list-style: none; }
+    .learn summary::-webkit-details-marker { display: none; }
+    .learn summary strong { font-size: 13px; }
+    .learn summary span { color: var(--muted); font-size: 11px; }
+    .learn-content { padding: 0 18px 19px; border-top: 1px solid var(--line); }
+    .learn-intro { max-width: 820px; margin: 15px 0; color: var(--muted); font-size: 12px; }
+    .learn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+    .learn-step { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.025); }
+    .learn-step b { display: block; margin-bottom: 5px; color: var(--cyan); font-size: 11px; }
+    .learn-step span { color: var(--muted); font-size: 10px; }
+    .cut-note { margin-top: 10px; padding: 12px; border-left: 2px solid var(--yellow); background: rgba(255,211,79,.045); color: var(--muted); font-size: 11px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .light-mode {
+      color-scheme: light;
+      --page: #eef3f1;
+      --surface: #fff;
+      --surface-raised: #f5f9f7;
+      --surface-soft: #fff;
+      --line: rgba(24,54,56,.13);
+      --line-strong: rgba(24,54,56,.24);
+      --text: #172b31;
+      --muted: #52686d;
+      --quiet: #788b8e;
+      --shadow: 0 18px 50px rgba(34,60,59,.1);
+      background-color: var(--page);
+      background-image: radial-gradient(ellipse at 8% 0%, rgba(38,134,128,.08), transparent 35%), radial-gradient(ellipse at 94% 18%, rgba(216,177,64,.1), transparent 30%);
+    }
+    .light-mode .panel, .light-mode .learn { background: rgba(255,255,255,.86); }
+    .light-mode .canvas-wrap { background: #101e27; }
+    .light-mode .canvas-tooltip, .light-mode .toast { background: #17303a; color: #eef7f8; }
+    .light-mode .step-explanation { color: #76501e; }
+    @media (max-width: 930px) {
+      .layout { grid-template-columns: minmax(0, 1fr); }
+      .tab-content { min-height: 0; }
+      .canvas-wrap { height: clamp(360px, 68vw, 600px); }
+    }
+    @media (max-width: 600px) {
+      .app-shell { padding: 14px 12px 30px; }
+      .topbar { align-items: flex-start; padding-bottom: 15px; }
+      .brand { gap: 9px; }
+      .brand-mark { width: 37px; height: 37px; flex-basis: 37px; }
+      .brand-name { font-size: 14px; }
+      .brand-tagline { max-width: 190px; font-size: 10px; }
+      .top-actions { gap: 6px; }
+      .top-actions .button { min-height: 37px; padding: 0 9px; font-size: 10px; }
+      .top-actions .button svg { width: 14px; height: 14px; }
+      .top-actions .theme-label { display: none; }
+      .layout { gap: 12px; padding-top: 13px; }
+      .panel-heading { padding: 13px; }
+      .canvas-wrap { height: 390px; min-height: 330px; }
+      .canvas-footer { padding: 10px 12px; }
+      .legend { gap: 8px 11px; }
+      .legend-item { font-size: 9px; }
+      .tab-content { padding: 14px; }
+      .learn summary { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; padding: 10px 14px; }
+      .learn-content { padding: 0 13px 14px; }
+      .learn-grid { grid-template-columns: 1fr; }
+      .complexity-chip { font-size: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.3 2.8 5.7 13h5.1l-.2 8.2L18.4 11h-5.2l.1-8.2Z"/><path d="M3 5.5h3M18 18.5h3M18.5 4l1.2-1.2" opacity=".55"/></svg></div>
+        <div><h1 class="brand-name">VoltLink <span style="color:var(--muted);font-weight:500">/ Grid Planner</span></h1><p class="brand-tagline">Plan a smarter connection. Spend less wire.</p></div>
+      </div>
+      <div class="top-actions">
+        <button class="button" id="presentationBtn" title="Load an example and narrate Prim's algorithm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 5 11 7-11 7V5Z"/></svg><span>Present</span></button>
+        <button class="button quiet icon-only" id="themeBtn" aria-label="Switch to light theme" title="Toggle light and dark theme"><svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg></button>
+      </div>
+    </header>
+
+    <main>
+      <div class="layout">
+        <section class="panel canvas-panel" aria-labelledby="canvasTitle">
+          <div class="panel-heading">
+            <div><div class="eyebrow">Network canvas</div><h2 id="canvasTitle">Place your locations</h2></div>
+            <div class="canvas-state"><span class="live-dot"></span><span id="nodeCount">0 locations</span></div>
+          </div>
+          <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="gridCanvas" aria-label="Interactive power grid canvas. Click to add a location, drag to move, double-click to remove."></canvas>
+            <div class="canvas-tooltip" id="canvasTooltip" role="tooltip"></div>
+            <div class="canvas-hint" id="canvasHint">Click to place the power source, then add buildings</div>
+          </div>
+          <div class="canvas-footer">
+            <div class="legend" aria-label="Graph legend">
+              <span class="legend-item"><i class="legend-dot source"></i>Source</span><span class="legend-item"><i class="legend-dot powered"></i>Powered</span><span class="legend-item"><i class="legend-dot unpowered"></i>Unpowered</span><span class="legend-item"><i class="legend-line"></i>Candidate</span><span class="legend-item"><i class="legend-line selected"></i>Selected wire</span>
+            </div>
+            <label class="inline-control" style="margin:0;gap:7px"><span class="inline-label">Show all costs</span><span class="toggle"><input id="showCosts" type="checkbox" aria-label="Show all connection costs"><span class="toggle-track"></span></span></label>
+          </div>
+        </section>
+
+        <section class="panel side-panel" aria-label="Planner controls and results">
+          <div class="tabs" role="tablist" aria-label="Planner views">
+            <button class="tab" id="tabControls" role="tab" aria-selected="true" aria-controls="paneControls">Controls</button>
+            <button class="tab" id="tabSteps" role="tab" aria-selected="false" aria-controls="paneSteps">Steps</button>
+            <button class="tab" id="tabResults" role="tab" aria-selected="false" aria-controls="paneResults">Results</button>
+          </div>
+          <div class="tab-content">
+            <section class="tab-pane" id="paneControls" role="tabpanel" aria-labelledby="tabControls">
+              <div class="control-section">
+                <div class="section-head"><div><h2 class="section-title">Network setup</h2><p class="section-subtitle">Place, move, or precisely position nodes.</p></div><span class="complexity-chip" title="Adjacency-matrix Prim's algorithm"><b>O(V^2)</b> matrix Prim</span></div>
+                <div class="form-row">
+                  <div class="field"><label for="presetSelect">Load example</label><select id="presetSelect"><option value="">Choose a network...</option><option value="campus">Small campus · 6 nodes</option><option value="neighborhood">Neighborhood · 10 nodes</option><option value="disconnected">Disconnected demo</option></select></div>
+                  <div class="field"><label for="randomCount">Random network</label><div style="display:flex;gap:6px"><input id="randomCount" type="number" min="3" max="18" value="8" aria-label="Number of random locations"><button class="button small" id="randomBtn" aria-label="Generate random network">Generate</button></div></div>
+                </div>
+                <div class="form-row">
+                  <div class="field"><label for="coordX">X coordinate (0–100)</label><input id="coordX" type="number" min="0" max="100" step="0.1" placeholder="e.g. 50"></div>
+                  <div class="field"><label for="coordY">Y coordinate (0–100)</label><input id="coordY" type="number" min="0" max="100" step="0.1" placeholder="e.g. 50"></div>
+                </div>
+                <button class="button small" id="addCoordinates" style="width:100%;margin-top:8px">＋ Add location at coordinates</button>
+                <div class="source-note">First location is the power source. Drag to reposition; double-click a point to remove it.</div>
+                <div class="control-actions"><button class="button" id="undoBtn" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-1"/></svg>Undo</button><button class="button" id="clearBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v6m6-6v6"/></svg>Clear</button><button class="button primary" id="runBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M4.9 4.9 7 7m10 10 2.1 2.1M3 12h3m12 0h3M4.9 19.1 7 17m10-10 2.1-2.1"/><circle cx="12" cy="12" r="4"/></svg>Find Minimum-Cost Wiring</button></div>
+              </div>
+              <div class="control-section">
+                <div class="section-head"><div><h2 class="section-title">Connection costs</h2><p class="section-subtitle">Choose how each possible wire is priced.</p></div></div>
+                <div class="segmented" role="group" aria-label="Cost mode"><button id="autoMode" class="active" aria-pressed="true">Auto · distance</button><button id="manualMode" aria-pressed="false">Manual matrix</button></div>
+                <div id="autoCostOptions" class="inline-control"><span class="inline-label">Cost per metre</span><div style="display:flex;align-items:center;gap:6px"><input id="costPerMetre" type="number" min="0" step="0.1" value="1" aria-label="Cost per metre" style="width:82px;height:34px;padding:0 7px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-soft);color:var(--text);font-family:var(--mono)"><span class="eyebrow">credits / m</span></div></div>
+                <div id="matrixArea" hidden><div class="inline-control"><span class="inline-label">Undirected connection costs</span><span class="eyebrow">blank = no link</span></div><div class="matrix-wrap" id="matrixWrap"></div><p class="matrix-note">Editing either direction updates its pair. Negative or invalid costs cannot be used.</p></div>
+              </div>
+            </section>
+
+            <section class="tab-pane" id="paneSteps" role="tabpanel" aria-labelledby="tabSteps" hidden>
+              <div class="section-head"><div><h2 class="section-title">Prim's algorithm</h2><p class="section-subtitle" id="stepCounter">Run the planner to generate a trace.</p></div><span class="complexity-chip"><b>O(V^2)</b></span></div>
+              <div class="step-explanation" id="stepExplanation" aria-live="polite">Start with a network or load an example, then find the minimum-cost wiring.</div>
+              <div class="player-controls">
+                <button class="button" id="prevBtn" title="Previous step" aria-label="Previous step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m19 20-9-8 9-8v16ZM5 19V5"/></svg>Previous</button>
+                <button class="button primary" id="nextBtn" title="Next step" aria-label="Next step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 4 11 8-11 8V4Zm14 1v14"/></svg>Next</button>
+                <button class="button" id="playBtn" title="Play steps" aria-label="Play steps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 5 11 7-11 7V5Z"/></svg>Play</button>
+                <button class="button" id="pauseBtn" title="Pause playback" aria-label="Pause playback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14m8-14v14"/></svg>Pause</button>
+              </div>
+              <div class="speed-row"><span>Slow</span><input id="speedSlider" type="range" min="500" max="2600" step="100" value="1500" aria-label="Playback delay"><span>Fast</span></div>
+              <div class="progress-track" aria-label="Algorithm progress"><div class="progress-fill" id="progressFill"></div></div>
+              <button class="button small" id="skipBtn" style="width:100%;margin-top:10px">Skip to result</button>
+              <div class="section-head" style="margin:16px 0 0"><div><h3 class="section-title">Trace</h3><p class="section-subtitle">Each wire expands the powered set.</p></div><button class="button small" id="resetStepsBtn">Reset</button></div>
+              <div class="step-list" id="stepList"><div class="empty-state">Your algorithm trace will appear here.</div></div>
+              <div class="state-table-wrap" id="stateTableWrap"><div class="empty-state">Algorithm state appears after running.</div></div>
+            </section>
+
+            <section class="tab-pane" id="paneResults" role="tabpanel" aria-labelledby="tabResults" hidden>
+              <div class="section-head"><div><h2 class="section-title">Wiring plan</h2><p class="section-subtitle">A minimum spanning tree from the power source.</p></div></div>
+              <div id="resultsEmpty" class="empty-state">Run Prim's algorithm to calculate the least-cost wiring plan.</div>
+              <div id="resultsContent" hidden>
+                <div class="result-hero"><div><div class="eyebrow">Minimum total cost</div><div class="result-cost" id="totalCost">0.00</div><div class="result-unit" id="resultUnit">credits</div></div><div class="wire-count"><strong id="wireCount">0</strong><span>wires</span></div></div>
+                <div class="compare-card"><h3>MST cost vs. connecting every building directly to the source</h3><div class="compare-values"><div class="compare-value"><span>Direct connections</span><strong id="directCost">—</strong></div><span class="compare-arrow">→</span><div class="compare-value"><span>Minimum tree</span><strong id="mstCompareCost">—</strong></div></div><div class="savings"><span>Estimated savings</span><strong id="savingsValue">—</strong></div></div>
+                <div class="section-head" style="margin:15px 0 7px"><h3 class="section-title">Selected wires</h3><span class="eyebrow" id="wireListCount">0 links</span></div>
+                <div class="wire-list" id="wireList"></div>
+                <div class="unreachable-box" id="unreachableBox" role="status"></div>
+                <div class="finale-banner" id="finaleBanner"></div>
+                <div class="export-row"><button class="button small" id="exportPng"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>Canvas PNG</button><button class="button small" id="exportJson">JSON</button><button class="button small" id="exportCsv">CSV</button></div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <details class="learn">
+        <summary><strong>How minimum-cost wiring works</strong><span>Explore MSTs, Prim's algorithm, and the cut property</span></summary>
+        <div class="learn-content"><p class="learn-intro">A minimum spanning tree connects every reachable location using the least total wire, without creating unnecessary loops. Prim's grows one connected network outward from the power source.</p><div class="learn-grid"><div class="learn-step"><b>01 / Start</b><span>Mark the source as powered. Every other location is still outside the tree.</span></div><div class="learn-step"><b>02 / Choose</b><span>Among all wires crossing from powered to unpowered locations, select the cheapest.</span></div><div class="learn-step"><b>03 / Expand</b><span>Add that wire and new building. Repeat until every reachable building is powered.</span></div></div><div class="cut-note"><strong style="color:var(--yellow)">Why this is minimum:</strong> At each iteration, the chosen wire is the cheapest one crossing the boundary between powered and unpowered locations. The cut property says that wire is safe to include in some minimum spanning tree, so repeating the choice builds an overall minimum-cost result.</div></div>
+      </details>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="sr-only" id="screenReaderLog" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    "use strict";
+
+    /* CONFIG */
+    const CONFIG = { worldSize: 100, nodeRadius: 8, hitRadius: 15, maxNodes: 18, duplicateDistance: 1.2, animationDuration: 650 };
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    /* STATE */
+    const state = {
+      nodes: [], costMatrix: [], mode: "auto", costPerMetre: 1, showCosts: false,
+      result: null, currentStep: 0, undoStack: [], playing: false, playTimer: null,
+      presentationTimer: null, arrivalTimes: new Map(), rejectedEdges: new Map(),
+      finaleStarted: false, hover: null, dragIndex: -1, pointerDown: null, hasMoved: false
+    };
+    const canvas = document.getElementById("gridCanvas");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const canvasWrap = document.getElementById("canvasWrap");
+    const tooltip = document.getElementById("canvasTooltip");
+    const $ = (selector) => document.querySelector(selector);
+    let viewWidth = 0;
+    let viewHeight = 0;
+    let animationFrameId = null;
+    let toastTimer = null;
+    let lastCountAnimation = 0;
+
+    /* PRIM'S ALGORITHM */
+    function primsAlgorithm(nodes, costMatrix) {
+      // Step 1: Return a clear empty result when there is no source to start from.
+      if (!nodes.length) return { edges: [], totalCost: 0, steps: [], unreachable: [] };
+      // Step 2: Start the tree at node zero, which is always the power source.
+      const visited = new Set([0]);
+      const edges = [];
+      const steps = [];
+      let totalCost = 0;
+      // Step 3: Continue until every node is visited or no crossing wire remains.
+      while (visited.size < nodes.length) {
+        // Step 4: Gather every valid wire from the powered set to an unpowered node.
+        const candidates = [];
+        for (const from of visited) {
+          for (let to = 0; to < nodes.length; to += 1) {
+            if (visited.has(to)) continue;
+            const cost = costMatrix[from][to];
+            if (Number.isFinite(cost) && cost >= 0) candidates.push({ from, to, cost });
+          }
+        }
+        // Step 5: Sort candidates by cost, then stable node index for predictable ties.
+        candidates.sort((a, b) => a.cost - b.cost || a.from - b.from || a.to - b.to);
+        // Step 6: If the frontier is empty, record the disconnected remainder and stop.
+        if (!candidates.length) {
+          const unreachable = nodes.map((_, index) => index).filter((index) => !visited.has(index));
+          steps.push({ visited: [...visited], candidates: [], chosen: null, runningCost: totalCost, explanation: `No possible wire crosses the powered boundary. ${unreachable.map((index) => nodes[index].name).join(", ")} ${unreachable.length === 1 ? "is" : "are"} unreachable.` });
+          return { edges, totalCost, steps, unreachable };
+        }
+        // Step 7: Choose the cheapest crossing wire and remember the current frontier.
+        const chosen = candidates[0];
+        const visitedBefore = [...visited];
+        // Step 8: Add the wire, power its new endpoint, and update the running cost.
+        edges.push({ ...chosen });
+        visited.add(chosen.to);
+        totalCost += chosen.cost;
+        // Step 9: Save a readable trace entry so playback can explain this decision.
+        const poweredNames = visitedBefore.map((index) => nodes[index].name).join(", ");
+        const candidateText = candidates.map((edge) => `${nodes[edge.from].name}-${nodes[edge.to].name} (${formatCost(edge.cost)})`).join(", ");
+        steps.push({ visited: visitedBefore, candidates: candidates.map((edge) => ({ ...edge })), chosen: { ...chosen }, runningCost: totalCost, explanation: `Powered so far: {${poweredNames}}. Candidates: ${candidateText}. The cheapest is ${nodes[chosen.from].name}-${nodes[chosen.to].name} (${formatCost(chosen.cost)}), so ${nodes[chosen.to].name} gets connected.` });
+      }
+      // Step 10: Return the complete tree after the source has reached every node.
+      return { edges, totalCost, steps, unreachable: [] };
+    }
+
+    /* GRAPH HELPERS */
+    function formatCost(value) { return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+    function edgeKey(from, to) { return from < to ? `${from}:${to}` : `${to}:${from}`; }
+    function nodeName(index) { return state.nodes[index]?.name ?? `B${index}`; }
+    function computedCostMatrix() {
+      if (state.mode === "manual") return state.costMatrix.map((row) => row.map((value) => value === null ? Infinity : value));
+      return state.nodes.map((from, i) => state.nodes.map((to, j) => i === j ? 0 : Math.hypot(from.x - to.x, from.y - to.y) * state.costPerMetre));
+    }
+    function pointFor(node) {
+      const margin = 35;
+      return { x: margin + (node.x / CONFIG.worldSize) * (viewWidth - margin * 2), y: margin + (node.y / CONFIG.worldSize) * (viewHeight - margin * 2) };
+    }
+    function worldPoint(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const margin = 35;
+      return { x: Math.max(0, Math.min(100, ((clientX - rect.left - margin) / (viewWidth - margin * 2)) * 100)), y: Math.max(0, Math.min(100, ((clientY - rect.top - margin) / (viewHeight - margin * 2)) * 100)) };
+    }
+    function pushUndo() {
+      state.undoStack.push({ nodes: structuredClone(state.nodes), costMatrix: structuredClone(state.costMatrix), mode: state.mode, costPerMetre: state.costPerMetre });
+      if (state.undoStack.length > 40) state.undoStack.shift();
+      $("#undoBtn").disabled = false;
+    }
+    function invalidateResult() {
+      pausePlayback();
+      state.result = null;
+      state.currentStep = 0;
+      state.arrivalTimes.clear();
+      state.rejectedEdges.clear();
+      state.finaleStarted = false;
+      $("#resultsEmpty").hidden = false;
+      $("#resultsContent").hidden = true;
+      $("#stepExplanation").textContent = "Network changed. Run the planner again to refresh the algorithm trace.";
+      $("#stepCounter").textContent = "Trace cleared · run the planner again.";
+      $("#stepList").innerHTML = '<div class="empty-state">Your algorithm trace will appear here.</div>';
+      $("#stateTableWrap").innerHTML = '<div class="empty-state">Algorithm state appears after running.</div>';
+      $("#progressFill").style.width = "0%";
+      $("#finaleBanner").style.display = "none";
+      updateInterface();
+    }
+    function addNode(x, y, recordUndo = true) {
+      if (state.nodes.length >= CONFIG.maxNodes) { showToast(`The canvas supports up to ${CONFIG.maxNodes} locations.`, true); return false; }
+      if (state.nodes.some((node) => Math.hypot(node.x - x, node.y - y) < CONFIG.duplicateDistance)) { showToast("That point is too close to an existing location. Move it slightly and try again.", true); return false; }
+      if (recordUndo) pushUndo();
+      const index = state.nodes.length;
+      state.nodes.push({ x, y, name: index === 0 ? "Source" : `B${index}` });
+      for (const row of state.costMatrix) row.push(null);
+      state.costMatrix.push(Array.from({ length: index + 1 }, (_, col) => col === index ? 0 : null));
+      invalidateResult();
+      renderCostMatrix();
+      showToast(index === 0 ? "Power source placed." : `${nodeName(index)} added to the network.`);
+      return true;
+    }
+    function deleteNode(index) {
+      if (index < 0 || index >= state.nodes.length) return;
+      const name = nodeName(index);
+      pushUndo();
+      state.nodes.splice(index, 1);
+      state.costMatrix.splice(index, 1);
+      for (const row of state.costMatrix) row.splice(index, 1);
+      state.nodes.forEach((node, i) => { node.name = i === 0 ? "Source" : `B${i}`; });
+      invalidateResult();
+      renderCostMatrix();
+      showToast(`${name} removed. Remaining nodes were renumbered.`);
+    }
+    function updateInterface() {
+      const count = state.nodes.length;
+      $("#nodeCount").textContent = `${count} ${count === 1 ? "location" : "locations"}`;
+      $("#canvasHint").textContent = count === 0 ? "Click to place the power source, then add buildings" : count === 1 ? "Source placed · click to add buildings" : "Drag to move · double-click a point to remove";
+      $("#autoMode").classList.toggle("active", state.mode === "auto");
+      $("#manualMode").classList.toggle("active", state.mode === "manual");
+      $("#autoMode").setAttribute("aria-pressed", String(state.mode === "auto"));
+      $("#manualMode").setAttribute("aria-pressed", String(state.mode === "manual"));
+      $("#autoCostOptions").hidden = state.mode !== "auto";
+      $("#matrixArea").hidden = state.mode !== "manual";
+      $("#undoBtn").disabled = state.undoStack.length === 0;
+      draw();
+    }
+    function showToast(message, error = false) {
+      const toast = $("#toast");
+      toast.textContent = message;
+      toast.classList.toggle("error", error);
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 3000);
+    }
+    function announce(message) { $("#screenReaderLog").textContent = message; }
+    function renderCostMatrix() {
+      const count = state.nodes.length;
+      if (!count) { $("#matrixWrap").innerHTML = '<div class="empty-state">Add locations to edit their connection costs.</div>'; return; }
+      let html = '<table class="matrix-table" aria-label="Manual connection cost matrix"><thead><tr><th scope="col">From / to</th>';
+      state.nodes.forEach((node) => { html += `<th scope="col">${escapeHtml(node.name)}</th>`; });
+      html += '</tr></thead><tbody>';
+      state.nodes.forEach((node, row) => {
+        html += `<tr><th class="row-head" scope="row">${escapeHtml(node.name)}</th>`;
+        state.nodes.forEach((_, col) => {
+          if (row === col) html += '<td><input class="matrix-input" value="—" disabled aria-label="Same location"></td>';
+          else html += `<td><input class="matrix-input" type="number" min="0" step="any" data-row="${row}" data-col="${col}" value="${state.costMatrix[row][col] ?? ""}" aria-label="Cost from ${escapeHtml(node.name)} to ${escapeHtml(nodeName(col))}" placeholder="—"></td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      $("#matrixWrap").innerHTML = html;
+    }
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]); }
+    function validateCosts() {
+      if (state.mode === "auto") {
+        const cost = Number($("#costPerMetre").value);
+        if (!Number.isFinite(cost) || cost < 0) return "Cost per metre must be a valid, non-negative number.";
+        state.costPerMetre = cost;
+      } else {
+        const inputs = [...document.querySelectorAll(".matrix-input:not(:disabled)")];
+        for (const input of inputs) {
+          if (input.value.trim() === "") continue;
+          const cost = Number(input.value);
+          if (!Number.isFinite(cost) || cost < 0) return "Every manual cost must be a valid, non-negative number, or left blank.";
+        }
+      }
+      return "";
+    }
+
+    /* RENDERING */
+    function resizeCanvas() {
+      const rect = canvasWrap.getBoundingClientRect();
+      const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      viewWidth = rect.width;
+      viewHeight = rect.height;
+      canvas.width = Math.round(rect.width * ratio);
+      canvas.height = Math.round(rect.height * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      draw();
+    }
+    function scheduleDraw() {
+      if (reducedMotion || animationFrameId !== null) return;
+      animationFrameId = requestAnimationFrame(() => {
+        animationFrameId = null;
+        draw();
+      });
+    }
+    function drawGrid() {
+      ctx.fillStyle = "#09151e";
+      ctx.fillRect(0, 0, viewWidth, viewHeight);
+      const margin = 35;
+      ctx.strokeStyle = "rgba(133,174,185,.075)";
+      ctx.lineWidth = 1;
+      for (let x = margin; x < viewWidth - margin; x += 30) { ctx.beginPath(); ctx.moveTo(x, margin); ctx.lineTo(x, viewHeight - margin); ctx.stroke(); }
+      for (let y = margin; y < viewHeight - margin; y += 30) { ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(viewWidth - margin, y); ctx.stroke(); }
+      ctx.strokeStyle = "rgba(133,174,185,.16)";
+      ctx.setLineDash([3, 6]);
+      ctx.strokeRect(margin, margin, viewWidth - margin * 2, viewHeight - margin * 2);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(133,174,185,.55)";
+      ctx.font = '9px "DM Mono", monospace';
+      ctx.fillText("0", margin - 2, viewHeight - 15);
+      ctx.fillText("100", viewWidth - margin - 23, viewHeight - 15);
+      ctx.fillText("GRID COORDINATES", margin, 17);
+    }
+    function draw() {
+      if (!ctx || !viewWidth || !viewHeight) return;
+      drawGrid();
+      const costs = computedCostMatrix();
+      const time = performance.now();
+      const current = activeStep();
+      const chosenKeys = new Set((state.result?.edges ?? []).slice(0, state.currentStep).map((edge) => edgeKey(edge.from, edge.to)));
+      const candidateKeys = new Map();
+      if (current) current.candidates.forEach((edge, index) => candidateKeys.set(edgeKey(edge.from, edge.to), { ...edge, cheapest: index === 0 }));
+      // Draw the complete potential graph first, so selected wires remain visually on top.
+      for (let from = 0; from < state.nodes.length; from += 1) {
+        for (let to = from + 1; to < state.nodes.length; to += 1) {
+          const cost = costs[from][to];
+          if (!Number.isFinite(cost)) continue;
+          const a = pointFor(state.nodes[from]);
+          const b = pointFor(state.nodes[to]);
+          const key = edgeKey(from, to);
+          const selected = chosenKeys.has(key);
+          const candidate = candidateKeys.get(key);
+          const rejectedUntil = state.rejectedEdges.get(key) ?? 0;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+          ctx.lineWidth = selected ? 2.8 : candidate ? (candidate.cheapest ? 3 : 1.8) : 1;
+          ctx.strokeStyle = selected ? "rgba(95,224,160,.82)" : candidate ? (candidate.cheapest ? "rgba(255,184,76,.98)" : "rgba(255,184,76,.54)") : rejectedUntil > time ? "rgba(255,107,112,.75)" : "rgba(133,174,185,.13)";
+          if (candidate) { ctx.shadowColor = candidate.cheapest ? "rgba(255,184,76,.75)" : "rgba(255,184,76,.28)"; ctx.shadowBlur = candidate.cheapest ? 12 + Math.sin(time / 150) * 4 : 6; }
+          else if (selected) { ctx.shadowColor = "rgba(95,224,160,.25)"; ctx.shadowBlur = 8; }
+          ctx.stroke(); ctx.shadowBlur = 0;
+          if (selected) {
+            ctx.save(); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.setLineDash([5, 9]); ctx.lineDashOffset = -time / 90; ctx.lineWidth = 1; ctx.strokeStyle = "rgba(195,255,222,.75)"; ctx.stroke(); ctx.restore();
+          }
+          if (state.showCosts || candidate || selected) drawCostLabel(a, b, cost, candidate?.cheapest ? "#ffd18a" : selected ? "#a6f2c4" : "#9bb0b8");
+        }
+      }
+      // Draw nodes over the graph; powered status comes from the visible playback prefix.
+      const powered = visiblePoweredNodes();
+      state.nodes.forEach((node, index) => {
+        const point = pointFor(node);
+        const isPowered = powered.has(index);
+        const isUnreachable = Boolean(state.result?.unreachable.includes(index));
+        const arrival = state.arrivalTimes.get(index) ?? 0;
+        if (arrival && !reducedMotion) {
+          const age = Math.max(0, (time - arrival) / CONFIG.animationDuration);
+          if (age < 1) { ctx.beginPath(); ctx.arc(point.x, point.y, CONFIG.nodeRadius + 5 + age * 19, 0, Math.PI * 2); ctx.strokeStyle = `rgba(95,224,160,${(1 - age) * .5})`; ctx.lineWidth = 1.5; ctx.stroke(); }
+        }
+        if (isUnreachable) {
+          const pulse = reducedMotion ? 0 : Math.sin(time / 180) * 2;
+          ctx.beginPath(); ctx.arc(point.x, point.y, 17 + pulse, 0, Math.PI * 2); ctx.strokeStyle = "rgba(255,107,112,.86)"; ctx.lineWidth = 2; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+        }
+        ctx.beginPath(); ctx.arc(point.x, point.y, CONFIG.nodeRadius + (arrival && time - arrival < CONFIG.animationDuration && !reducedMotion ? Math.sin((time - arrival) / CONFIG.animationDuration * Math.PI) * 2 : 0), 0, Math.PI * 2);
+        ctx.fillStyle = index === 0 ? "#ffd34f" : isPowered ? "#5fe0a0" : "#536b75";
+        ctx.shadowColor = index === 0 ? "rgba(255,211,79,.75)" : isPowered ? "rgba(95,224,160,.65)" : "transparent";
+        ctx.shadowBlur = index === 0 || isPowered ? 16 : 0;
+        ctx.fill(); ctx.shadowBlur = 0;
+        ctx.lineWidth = 2; ctx.strokeStyle = index === 0 ? "#fff0ad" : isPowered ? "#baffd8" : "#90a3a8"; ctx.stroke();
+        ctx.fillStyle = isPowered || index === 0 ? "#f1fbf8" : "#99abb0";
+        ctx.font = '700 10px "Manrope", sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(node.name, point.x, point.y + 14);
+        if (index === 0) { ctx.fillStyle = "rgba(255,211,79,.75)"; ctx.font = '8px "DM Mono", monospace'; ctx.fillText("POWER", point.x, point.y - 25); }
+      });
+      scheduleDraw();
+    }
+    function drawCostLabel(a, b, cost, color) {
+      const x = (a.x + b.x) / 2;
+      const y = (a.y + b.y) / 2;
+      const label = formatCost(cost);
+      ctx.font = '9px "DM Mono", monospace';
+      const width = ctx.measureText(label).width + 10;
+      ctx.fillStyle = "rgba(7,17,25,.9)"; ctx.beginPath(); ctx.roundRect(x - width / 2, y - 8, width, 16, 4); ctx.fill();
+      ctx.strokeStyle = "rgba(173,203,215,.13)"; ctx.lineWidth = .6; ctx.stroke();
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = color; ctx.fillText(label, x, y + .5);
+    }
+    function activeStep() {
+      if (!state.result?.steps.length) return null;
+      if (state.currentStep >= state.result.steps.length) return null;
+      return state.result.steps[state.currentStep];
+    }
+    function visiblePoweredNodes() {
+      const powered = new Set(state.nodes.length ? [0] : []);
+      (state.result?.edges ?? []).slice(0, state.currentStep).forEach((edge) => powered.add(edge.to));
+      return powered;
+    }
+    function startArrival(index) { state.arrivalTimes.set(index, performance.now()); }
+
+    /* ANIMATION AND PLAYBACK */
+    function runAlgorithm() {
+      if (state.nodes.length < 2) { showToast("Add at least two locations, including a power source, before running Prim's algorithm.", true); return; }
+      const validation = validateCosts();
+      if (validation) { showToast(validation, true); return; }
+      pausePlayback();
+      const result = primsAlgorithm(state.nodes, computedCostMatrix());
+      state.result = result;
+      state.currentStep = 0;
+      state.arrivalTimes.clear(); state.rejectedEdges.clear(); state.finaleStarted = false;
+      startArrival(0);
+      renderTrace(); renderResults(); updateInterface();
+      setActiveTab("steps");
+      announce(`Prim's algorithm found ${result.edges.length} wires with total cost ${formatCost(result.totalCost)}. ${result.unreachable.length ? `${result.unreachable.length} locations are unreachable.` : "All locations are connected."}`);
+      if (!result.steps.length) completeFinale();
+    }
+    function advanceStep() {
+      if (!state.result || state.currentStep >= state.result.steps.length) return false;
+      const step = state.result.steps[state.currentStep];
+      step.candidates.slice(1).forEach((edge) => state.rejectedEdges.set(edgeKey(edge.from, edge.to), performance.now() + 800));
+      state.currentStep += 1;
+      if (step.chosen) startArrival(step.chosen.to);
+      updateTraceView(); updateInterface();
+      announce(step.explanation);
+      if (state.currentStep >= state.result.steps.length) { pausePlayback(); if (!state.result.unreachable.length) completeFinale(); }
+      return true;
+    }
+    function rewindStep() {
+      if (!state.result || state.currentStep <= 0) return;
+      pausePlayback();
+      state.currentStep -= 1;
+      state.finaleStarted = false;
+      $("#finaleBanner").style.display = "none";
+      updateTraceView(); updateInterface();
+      announce(`Showing step ${state.currentStep} of ${state.result.steps.length}.`);
+    }
+    function playPlayback() {
+      if (!state.result) { runAlgorithm(); if (!state.result) return; }
+      if (state.currentStep >= state.result.steps.length) resetPlayback();
+      pausePlayback();
+      state.playing = true;
+      const tick = () => {
+        if (!state.playing) return;
+        if (!advanceStep()) { pausePlayback(); return; }
+        if (state.playing && state.currentStep < state.result.steps.length) state.playTimer = setTimeout(tick, Number($("#speedSlider").value));
+      };
+      state.playTimer = setTimeout(tick, Number($("#speedSlider").value));
+    }
+    function pausePlayback() {
+      state.playing = false;
+      clearTimeout(state.playTimer); state.playTimer = null;
+      clearTimeout(state.presentationTimer); state.presentationTimer = null;
+    }
+    function resetPlayback() {
+      pausePlayback();
+      if (!state.result) return;
+      state.currentStep = 0; state.arrivalTimes.clear(); state.finaleStarted = false;
+      if (state.nodes.length) startArrival(0);
+      $("#finaleBanner").style.display = "none";
+      updateTraceView(); updateInterface();
+      announce("Playback reset to the power source.");
+    }
+    function skipToResult() {
+      if (!state.result) { runAlgorithm(); if (!state.result) return; }
+      state.currentStep = state.result.steps.length;
+      state.result.edges.forEach((edge) => startArrival(edge.to));
+      updateTraceView(); updateInterface();
+      if (!state.result.unreachable.length) completeFinale();
+      announce("Skipped to the completed minimum-cost wiring plan.");
+    }
+    function completeFinale() {
+      if (!state.result || state.finaleStarted || state.result.unreachable.length) return;
+      state.finaleStarted = true;
+      if (!reducedMotion) state.result.edges.forEach((edge, index) => setTimeout(() => startArrival(edge.to), index * 140));
+      $("#finaleBanner").textContent = `All ${Math.max(0, state.nodes.length - 1)} buildings powered at minimum cost`;
+      $("#finaleBanner").style.display = "block";
+      announce($("#finaleBanner").textContent);
+    }
+
+    /* UI HANDLERS */
+    function renderTrace() {
+      const result = state.result;
+      if (!result) return;
+      const list = $("#stepList");
+      list.innerHTML = result.steps.map((step, index) => {
+        const line = step.chosen ? `${nodeName(step.chosen.from)} → ${nodeName(step.chosen.to)} · ${formatCost(step.chosen.cost)}` : "Frontier exhausted · disconnected";
+        return `<div class="step-item" data-step="${index}"><span class="step-num">${index + 1}</span><span>${escapeHtml(line)}</span></div>`;
+      }).join("") || '<div class="empty-state">The source is the only location.</div>';
+      updateTraceView();
+    }
+    function updateTraceView() {
+      if (!state.result) return;
+      const result = state.result;
+      const step = activeStep();
+      const progress = result.steps.length ? state.currentStep / result.steps.length * 100 : 100;
+      $("#stepCounter").textContent = state.currentStep >= result.steps.length ? `Complete · ${result.edges.length} wires selected` : `Step ${state.currentStep} of ${result.steps.length} · ${result.edges.length} wires in the plan`;
+      const explanation = state.currentStep > 0 ? result.steps[state.currentStep - 1].explanation : step?.explanation ?? "Every location is already in the network.";
+      $("#stepExplanation").textContent = explanation;
+      $("#progressFill").style.width = `${progress}%`;
+      document.querySelectorAll(".step-item").forEach((element, index) => {
+        element.classList.toggle("active", index === Math.min(state.currentStep, Math.max(0, result.steps.length - 1)) && state.currentStep < result.steps.length || index === state.currentStep - 1 && state.currentStep > 0);
+      });
+      const active = $(".step-item.active"); if (active) active.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "auto" : "smooth" });
+      const visited = new Set(step?.visited ?? [0]);
+      if (state.currentStep >= result.steps.length) result.edges.forEach((edge) => visited.add(edge.to));
+      const costs = computedCostMatrix();
+      let table = '<table class="state-table" aria-label="Current Prim algorithm state"><thead><tr><th>Node</th><th>visited[]</th><th>min-edge choice</th></tr></thead><tbody>';
+      state.nodes.forEach((node, index) => {
+        let best = null;
+        if (!visited.has(index)) for (const source of visited) {
+          const cost = costs[source][index];
+          if (Number.isFinite(cost) && cost >= 0 && (!best || cost < best.cost)) best = { from: source, cost };
+        }
+        const choice = visited.has(index) ? "—" : best ? `${nodeName(best.from)} → ${node.name} (${formatCost(best.cost)})` : "unreachable";
+        table += `<tr><td>${escapeHtml(node.name)}</td><td class="${visited.has(index) ? "state-yes" : "state-no"}">${visited.has(index) ? "true" : "false"}</td><td>${escapeHtml(choice)}</td></tr>`;
+      });
+      table += "</tbody></table>";
+      $("#stateTableWrap").innerHTML = table;
+    }
+    function animateText(element, from, to, duration, suffix = "") {
+      const started = performance.now();
+      const run = (now) => {
+        const amount = Math.min(1, (now - started) / duration);
+        const eased = 1 - Math.pow(1 - amount, 3);
+        element.textContent = `${formatCost(from + (to - from) * eased)}${suffix}`;
+        if (amount < 1 && !reducedMotion) requestAnimationFrame(run);
+        else element.textContent = `${formatCost(to)}${suffix}`;
+      };
+      if (reducedMotion) element.textContent = `${formatCost(to)}${suffix}`;
+      else requestAnimationFrame(run);
+    }
+    function renderResults() {
+      const result = state.result;
+      $("#resultsEmpty").hidden = true;
+      $("#resultsContent").hidden = false;
+      const total = result.totalCost;
+      const directMatrix = computedCostMatrix();
+      let direct = 0;
+      let directPossible = true;
+      for (let index = 1; index < state.nodes.length; index += 1) {
+        if (!Number.isFinite(directMatrix[0][index])) directPossible = false;
+        else direct += directMatrix[0][index];
+      }
+      animateText($("#totalCost"), 0, total, 850);
+      $("#resultUnit").textContent = state.mode === "auto" ? "credits · distance × rate" : "credits · manual costs";
+      $("#wireCount").textContent = String(result.edges.length);
+      $("#directCost").textContent = directPossible ? formatCost(direct) : "not possible";
+      $("#mstCompareCost").textContent = formatCost(total);
+      const savings = directPossible && direct > 0 ? Math.max(0, ((direct - total) / direct) * 100) : 0;
+      animateText($("#savingsValue"), 0, savings, 900, "%");
+      $("#wireListCount").textContent = `${result.edges.length} ${result.edges.length === 1 ? "link" : "links"}`;
+      $("#wireList").innerHTML = result.edges.map((edge) => `<div class="wire-row"><span>${escapeHtml(nodeName(edge.from))} <span style="color:var(--quiet)">to</span> ${escapeHtml(nodeName(edge.to))}</span><span>${formatCost(edge.cost)} credits</span></div>`).join("") || '<div class="empty-state">No wires selected.</div>';
+      const unreachable = $("#unreachableBox");
+      if (result.unreachable.length) { unreachable.style.display = "block"; unreachable.textContent = `No possible path from the source to: ${result.unreachable.map(nodeName).join(", ")}. The plan above connects the reachable locations only.`; }
+      else { unreachable.style.display = "none"; unreachable.textContent = ""; }
+      $("#finaleBanner").style.display = "none";
+    }
+    function setActiveTab(name) {
+      ["controls", "steps", "results"].forEach((tab) => {
+        const selected = tab === name;
+        $(`#tab${tab[0].toUpperCase()}${tab.slice(1)}`).setAttribute("aria-selected", String(selected));
+        $(`#pane${tab[0].toUpperCase()}${tab.slice(1)}`).hidden = !selected;
+      });
+    }
+    function loadPreset(name) {
+      const presets = {
+        campus: { nodes: [[12,18],[38,15],[69,22],[24,52],[54,55],[82,72]], rate: 1, mode: "auto" },
+        neighborhood: { nodes: [[12,18],[34,12],[57,19],[83,15],[20,42],[46,39],[72,46],[13,75],[43,77],[78,78]], rate: .85, mode: "auto" },
+        disconnected: { nodes: [[13,20],[38,19],[24,50],[70,22],[84,50],[70,78]], mode: "manual", groups: [[0,1,2],[3,4,5]] }
+      };
+      const preset = presets[name];
+      if (!preset) return;
+      pausePlayback(); pushUndo();
+      state.nodes = preset.nodes.map(([x,y], index) => ({ x, y, name: index === 0 ? "Source" : `B${index}` }));
+      state.costMatrix = state.nodes.map((from, i) => state.nodes.map((to, j) => i === j ? 0 : preset.mode === "manual" ? null : Math.hypot(from.x - to.x, from.y - to.y) * preset.rate));
+      if (preset.groups) {
+        for (const group of preset.groups) for (let a = 0; a < group.length; a += 1) for (let b = a + 1; b < group.length; b += 1) {
+          const i = group[a], j = group[b]; state.costMatrix[i][j] = state.costMatrix[j][i] = Math.hypot(state.nodes[i].x - state.nodes[j].x, state.nodes[i].y - state.nodes[j].y);
+        }
+      }
+      state.mode = preset.mode; state.costPerMetre = preset.rate ?? 1;
+      $("#costPerMetre").value = state.costPerMetre;
+      $("#presetSelect").value = name;
+      invalidateResult(); renderCostMatrix(); updateInterface();
+      showToast(`${name === "campus" ? "Small campus" : name === "neighborhood" ? "Neighborhood" : "Disconnected demo"} loaded.`);
+    }
+    function generateRandomNetwork() {
+      const count = Number($("#randomCount").value);
+      if (!Number.isInteger(count) || count < 3 || count > CONFIG.maxNodes) { showToast(`Choose between 3 and ${CONFIG.maxNodes} locations.`, true); return; }
+      pausePlayback(); pushUndo();
+      const points = [];
+      let attempts = 0;
+      while (points.length < count && attempts < 3000) {
+        attempts += 1;
+        const point = { x: 8 + Math.random() * 84, y: 8 + Math.random() * 84 };
+        if (points.every((existing) => Math.hypot(existing.x - point.x, existing.y - point.y) > 11)) points.push(point);
+      }
+      if (points.length < count) { showToast("Could not space those locations. Try fewer nodes.", true); return; }
+      state.nodes = points.map((point, index) => ({ ...point, name: index === 0 ? "Source" : `B${index}` }));
+      state.mode = "auto"; state.costPerMetre = 1; $("#costPerMetre").value = "1";
+      state.costMatrix = state.nodes.map((from, i) => state.nodes.map((to, j) => i === j ? 0 : null));
+      $("#presetSelect").value = "";
+      invalidateResult(); renderCostMatrix(); updateInterface();
+      showToast(`Random network generated with ${count} locations.`);
+    }
+    function exportData() {
+      if (!state.result) { showToast("Run the planner before exporting a wiring result.", true); return null; }
+      return { algorithm: "Prim's algorithm", source: state.nodes[0]?.name ?? null, mode: state.mode, totalCost: state.result.totalCost, wireCount: state.result.edges.length, edges: state.result.edges.map((edge) => ({ from: nodeName(edge.from), to: nodeName(edge.to), cost: edge.cost })), unreachable: state.result.unreachable.map(nodeName) };
+    }
+    function downloadFile(content, type, filename) {
+      const url = URL.createObjectURL(new Blob([content], { type }));
+      const link = document.createElement("a"); link.href = url; link.download = filename; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    function findHover(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left, y = clientY - rect.top;
+      let found = null;
+      for (let index = 0; index < state.nodes.length; index += 1) {
+        const point = pointFor(state.nodes[index]);
+        if (Math.hypot(x - point.x, y - point.y) <= CONFIG.hitRadius) { found = { type: "node", index, x, y }; break; }
+      }
+      if (!found) {
+        const costs = computedCostMatrix();
+        for (let from = 0; from < state.nodes.length && !found; from += 1) for (let to = from + 1; to < state.nodes.length; to += 1) {
+          if (!Number.isFinite(costs[from][to])) continue;
+          const a = pointFor(state.nodes[from]), b = pointFor(state.nodes[to]);
+          const lengthSquared = (b.x-a.x)**2 + (b.y-a.y)**2;
+          const t = Math.max(0, Math.min(1, ((x-a.x)*(b.x-a.x)+(y-a.y)*(b.y-a.y))/lengthSquared));
+          if (Math.hypot(x-(a.x+t*(b.x-a.x)), y-(a.y+t*(b.y-a.y))) < 5) { found = { type: "edge", from, to, x, y }; break; }
+        }
+      }
+      state.hover = found;
+      if (!found) { tooltip.style.display = "none"; return; }
+      if (found.type === "node") {
+        const node = state.nodes[found.index];
+        tooltip.innerHTML = `<strong>${escapeHtml(node.name)}${found.index === 0 ? " · Power source" : " · Building"}</strong>Coordinates: (${node.x.toFixed(1)}, ${node.y.toFixed(1)})`;
+      } else {
+        const cost = computedCostMatrix()[found.from][found.to];
+        tooltip.innerHTML = `<strong>${escapeHtml(nodeName(found.from))} — ${escapeHtml(nodeName(found.to))}</strong>Connection cost: ${formatCost(cost)} credits`;
+      }
+      tooltip.style.display = "block";
+      tooltip.style.left = `${Math.min(canvasWrap.clientWidth - 220, found.x + 14)}px`;
+      tooltip.style.top = `${Math.min(canvasWrap.clientHeight - 60, found.y + 14)}px`;
+    }
+
+    /* EVENTS */
+    canvasWrap.addEventListener("pointerdown", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left, y = event.clientY - rect.top;
+      state.pointerDown = { x, y, world: worldPoint(event.clientX, event.clientY) };
+      state.hasMoved = false;
+      state.dragIndex = -1;
+      for (let index = 0; index < state.nodes.length; index += 1) {
+        const point = pointFor(state.nodes[index]);
+        if (Math.hypot(x-point.x, y-point.y) <= CONFIG.hitRadius) { state.dragIndex = index; break; }
+      }
+      if (state.dragIndex >= 0) canvas.setPointerCapture(event.pointerId);
+    });
+    canvasWrap.addEventListener("pointermove", (event) => {
+      if (state.pointerDown && state.dragIndex >= 0 && (event.buttons || event.pointerType === "touch")) {
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left, y = event.clientY - rect.top;
+        if (Math.hypot(x - state.pointerDown.x, y - state.pointerDown.y) > 4 && !state.hasMoved) { pushUndo(); state.hasMoved = true; invalidateResult(); }
+        if (state.hasMoved) {
+          const point = worldPoint(event.clientX, event.clientY);
+          const overlap = state.nodes.some((node, index) => index !== state.dragIndex && Math.hypot(node.x-point.x,node.y-point.y) < CONFIG.duplicateDistance);
+          if (!overlap) { state.nodes[state.dragIndex].x = point.x; state.nodes[state.dragIndex].y = point.y; updateInterface(); }
+        }
+      } else if (!state.pointerDown) findHover(event.clientX, event.clientY);
+    });
+    canvasWrap.addEventListener("pointerup", (event) => {
+      if (state.pointerDown && !state.hasMoved && state.dragIndex < 0) {
+        const point = worldPoint(event.clientX, event.clientY);
+        addNode(point.x, point.y);
+      }
+      state.pointerDown = null; state.dragIndex = -1; state.hasMoved = false;
+    });
+    canvasWrap.addEventListener("pointercancel", () => { state.pointerDown = null; state.dragIndex = -1; state.hasMoved = false; });
+    canvasWrap.addEventListener("pointerleave", () => { if (!state.pointerDown) tooltip.style.display = "none"; });
+    canvas.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left, y = event.clientY - rect.top;
+      const index = state.nodes.findIndex((node) => { const point = pointFor(node); return Math.hypot(x-point.x,y-point.y) <= CONFIG.hitRadius + 3; });
+      if (index >= 0) deleteNode(index);
+    });
+    $("#addCoordinates").addEventListener("click", () => {
+      const x = Number($("#coordX").value), y = Number($("#coordY").value);
+      if (!$("#coordX").value || !$("#coordY").value || !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 100 || y < 0 || y > 100) { showToast("Enter valid X and Y coordinates between 0 and 100.", true); return; }
+      if (addNode(x,y)) { $("#coordX").value = ""; $("#coordY").value = ""; }
+    });
+    $("#undoBtn").addEventListener("click", () => {
+      const snapshot = state.undoStack.pop();
+      if (!snapshot) return;
+      state.nodes = snapshot.nodes; state.costMatrix = snapshot.costMatrix; state.mode = snapshot.mode; state.costPerMetre = snapshot.costPerMetre;
+      $("#costPerMetre").value = state.costPerMetre;
+      invalidateResult(); renderCostMatrix(); updateInterface();
+      showToast("Last network change undone.");
+    });
+    $("#clearBtn").addEventListener("click", () => {
+      if (!state.nodes.length) { showToast("The canvas is already clear."); return; }
+      pushUndo(); state.nodes = []; state.costMatrix = []; $("#presetSelect").value = "";
+      invalidateResult(); renderCostMatrix(); updateInterface(); showToast("Network cleared. Undo is available.");
+    });
+    $("#runBtn").addEventListener("click", runAlgorithm);
+    $("#autoMode").addEventListener("click", () => { if (state.mode !== "auto") { pushUndo(); state.mode = "auto"; invalidateResult(); updateInterface(); } });
+    $("#manualMode").addEventListener("click", () => { if (state.mode !== "manual") { pushUndo(); state.mode = "manual"; invalidateResult(); updateInterface(); renderCostMatrix(); } });
+    $("#costPerMetre").addEventListener("change", () => { if (validateCosts()) showToast(validateCosts(), true); else { state.costPerMetre = Number($("#costPerMetre").value); invalidateResult(); } });
+    $("#showCosts").addEventListener("change", (event) => { state.showCosts = event.target.checked; draw(); });
+    $("#matrixWrap").addEventListener("change", (event) => {
+      const input = event.target.closest(".matrix-input:not(:disabled)");
+      if (!input) return;
+      const row = Number(input.dataset.row), col = Number(input.dataset.col);
+      if (input.value.trim() === "") state.costMatrix[row][col] = state.costMatrix[col][row] = null;
+      else {
+        const cost = Number(input.value);
+        if (!Number.isFinite(cost) || cost < 0) { input.setAttribute("aria-invalid", "true"); showToast("Connection costs must be valid non-negative numbers, or blank.", true); return; }
+        input.removeAttribute("aria-invalid"); state.costMatrix[row][col] = state.costMatrix[col][row] = cost;
+      }
+      const pair = $(`.matrix-input[data-row="${col}"][data-col="${row}"]`); if (pair) pair.value = input.value;
+      invalidateResult(); draw();
+    });
+    $("#presetSelect").addEventListener("change", (event) => loadPreset(event.target.value));
+    $("#randomBtn").addEventListener("click", generateRandomNetwork);
+    $("#prevBtn").addEventListener("click", rewindStep);
+    $("#nextBtn").addEventListener("click", () => { if (!state.result) runAlgorithm(); else advanceStep(); });
+    $("#playBtn").addEventListener("click", playPlayback);
+    $("#pauseBtn").addEventListener("click", pausePlayback);
+    $("#skipBtn").addEventListener("click", skipToResult);
+    $("#resetStepsBtn").addEventListener("click", resetPlayback);
+    $("#themeBtn").addEventListener("click", () => {
+      const light = document.body.classList.toggle("light-mode");
+      $("#themeBtn").setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
+      $("#themeIcon").innerHTML = light ? '<path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/>' : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>';
+    });
+    document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => setActiveTab(button.id.replace("tab", "").toLowerCase())));
+    $("#exportPng").addEventListener("click", () => { if (!state.result) { showToast("Run the planner before exporting a wiring result.", true); return; } const link = document.createElement("a"); link.download = "voltlink-grid.png"; link.href = canvas.toDataURL("image/png"); link.click(); });
+    $("#exportJson").addEventListener("click", () => { const data = exportData(); if (data) downloadFile(JSON.stringify(data, null, 2), "application/json", "voltlink-wiring.json"); });
+    $("#exportCsv").addEventListener("click", () => { const data = exportData(); if (data) downloadFile(["from,to,cost", ...data.edges.map((edge) => `${JSON.stringify(edge.from)},${JSON.stringify(edge.to)},${edge.cost}`)].join("\n"), "text/csv", "voltlink-wiring.csv"); });
+    $("#presentationBtn").addEventListener("click", () => {
+      loadPreset("campus");
+      runAlgorithm();
+      if (!state.result) return;
+      setActiveTab("steps");
+      showToast("Presentation mode: watch the lowest-cost frontier expand.");
+      state.playing = true;
+      const narrate = () => {
+        if (!state.playing || !state.result) return;
+        if (state.currentStep >= state.result.steps.length) { pausePlayback(); setActiveTab("results"); return; }
+        advanceStep();
+        if (state.currentStep < state.result.steps.length) state.presentationTimer = setTimeout(narrate, Math.max(1800, Number($("#speedSlider").value)));
+        else { setActiveTab("results"); }
+      };
+      state.presentationTimer = setTimeout(narrate, 1200);
+    });
+
+    /* PRESETS AND INITIALIZATION */
+    const resizeObserver = new ResizeObserver(resizeCanvas);
+    resizeObserver.observe(canvasWrap);
+    window.addEventListener("resize", resizeCanvas, { passive: true });
+    renderCostMatrix(); updateInterface(); resizeCanvas();
+    draw();
+  </script>
+</body>
+</html>
